@@ -11,6 +11,8 @@ nueve observadores aceptados en la plaza de Lavapiés y la calle del Ave María,
 - Gate 3 del proyecto MVA: HOLD. No hay evidencia de que la visibilidad aporte información más allá de densidad edificada, red y POI.
 
 ## Datos y atribución
-- Huellas de edificios: geometría municipal derivada de tejados (archivo aportado por el autor, julio 2026). Origen de los datos: Ayuntamiento de Madrid. Si la licencia de reutilización exige otra atribución o condiciones, abre un issue y se corrige.
-- Mapa base: © OpenStreetMap contributors (se carga en línea; sin conexión se ven solo las geometrías).
+- **Huellas de edificios:** Origen de los datos: Ayuntamiento de Madrid. Conjunto "Modelo tridimensional de edificaciones y construcciones de la cartografía actualizada" (capas 2D de cubierta; [ficha](https://geoportal.madrid.es/IDEAM_WBGEOPORTAL/dataset.iam?id=ece2d15a-d16f-46e8-aaec-9576771b9997), revisión de metadatos 2026-07-01, escala 1:1000). Se usaron 1.307 polígonos de un contexto de 700 × 700 m alrededor de la plaza de Lavapiés, reproyectados de EPSG:25830 a WGS84 y redondeados a 6 decimales (~0,1 m). No se han alterado sus atributos de forma que cambie su sentido.
+- **Licencia de reutilización:** la ficha remite a las [condiciones generales](https://datos.madrid.es/pages/condiciones-generales-ayuntamiento-de-madrid) del Ayuntamiento de Madrid: reutilización comercial y no comercial permitida, citando la fuente y la fecha de actualización, sin desnaturalizar la información y sin sugerir que el Ayuntamiento participa, patrocina o apoya el trabajo. Esta demo cumple esas condiciones y **no está respaldada por el Ayuntamiento de Madrid**.
+- **Limitación de procedencia:** el archivo concreto se extrajo de una descarga hecha en julio de 2026 (SHA-256 `fcb20624…6a12`); no se registró qué capa exacta ni la fecha de actualización de esa descarga, por lo que la fecha indicada es la de revisión de la ficha, no la del archivo.
+- **Mapa base:** © OpenStreetMap contributors (se carga en línea; sin conexión se ven solo las geometrías).
 - Las isovistas son las geometrías de la fase 2A, sin recalcular.
