@@ -724,6 +724,13 @@ details li{margin-bottom:4px}
 .obs-label{background:rgba(255,253,248,.95);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:11px;font-weight:600;box-shadow:none;color:var(--ink)}
 .obs-label:before{display:none}
 #nt{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:900;background:rgba(255,253,248,.95);border:1px solid var(--line);border-radius:8px;padding:5px 11px;font-size:12px;color:var(--muted);display:none}
+
+.walk-btns{display:flex;gap:6px;margin:8px 0}
+.walk-btns .seg{flex:none;padding:7px 12px}
+.walk-btns .seg.wide{flex:1}
+#wslider{width:100%;accent-color:var(--ink);margin:4px 0}
+#wchart{width:100%;height:84px;display:block;background:#fff;border:1px solid var(--line);border-radius:8px}
+.walk-note{font-size:11.5px;color:var(--muted);margin:6px 0 0}
 @media (max-width:820px){
   #app{grid-template-columns:1fr;grid-template-rows:46% 54%}
   #panel{order:2;border-right:0;border-top:1px solid var(--line)}
@@ -746,6 +753,24 @@ details li{margin-bottom:4px}
 
     <h2>Observador seleccionado</h2>
     <div class="card" id="detail" aria-live="polite"></div>
+
+    <h2>Recorrido animado</h2>
+    <div class="card" id="walk">
+      <div class="tag">Un observador camina de la calle de Valencia a Ave María y su isovista se recalcula en cada paso (100 m, 360 rayos, huellas de tejado).</div>
+      <div class="metrics" id="wmet" aria-live="off">
+        <div class="m"><b id="w-area">–</b><span>Área visible (m²)</span></div>
+        <div class="m"><b id="w-ap">–</b><span>Apertura visual (0–1)</span></div>
+        <div class="m"><b id="w-dist">0</b><span>Recorrido (m)</span></div>
+      </div>
+      <div class="walk-btns" role="group" aria-label="Controles del recorrido">
+        <button class="seg wide" id="w-play" aria-pressed="false">▶ Caminar</button>
+        <button class="seg" id="w-speed" title="Velocidad">×1</button>
+        <button class="seg" id="w-exit" title="Volver a las isovistas fijas">Salir</button>
+      </div>
+      <input type="range" id="wslider" min="0" max="1000" value="0" aria-label="Posición a lo largo del recorrido">
+      <svg id="wchart" viewBox="0 0 320 84" preserveAspectRatio="none" role="img" aria-label="Área visible a lo largo del recorrido"></svg>
+      <p class="walk-note">Calculado en el navegador con el mismo método geométrico (puede diferir ligeramente de la Fase 2A). Sigue siendo una descripción geométrica 2D, no un indicador de caminabilidad.</p>
+    </div>
 
     <h2>Comparar plaza y calle estrecha</h2>
     <div class="cmp" role="group" aria-label="Modo de visualización">
@@ -889,6 +914,117 @@ document.getElementById("t-tile").onchange=e=>{
 function start(){map.invalidateSize();select(OBS[0].id,false);map.fitBounds(isoById[OBS[0].id].getBounds().pad(.6),{animate:false});}
 map.setView([OBS[0].lat,OBS[0].lon],18);
 window.addEventListener("load",()=>setTimeout(start,50));
+
+// ---- Recorrido animado: isovista recalculada en cada paso ----
+(function(){
+  const R=100, NR=360, LAT0=40.4088, KX=111320*Math.cos(LAT0*Math.PI/180), KY=110574;
+  const toXY=(lon,lat)=>[(lon+3.7)*KX,(lat-LAT0)*KY];
+  const toLL=(x,y)=>[y/KY+LAT0,x/KX-3.7];
+  const E=[];
+  DATA.buildings.forEach(mp=>mp.forEach(poly=>poly.forEach(r=>{
+    for(let i=0;i<r.length-1;i++){const a=toXY(r[i][0],r[i][1]),b=toXY(r[i+1][0],r[i+1][1]);E.push(a[0],a[1],b[0],b[1])}
+  })));
+  const NE=E.length/4;
+  const byId=Object.fromEntries(OBS.map(o=>[o.id,o]));
+  const SEQ=["cand-016","cand-015","cand-002","cand-001","cand-022","cand-023","cand-024","cand-025","cand-026"];
+  const W=SEQ.map(id=>toXY(byId[id].lon,byId[id].lat));
+  const cum=[0];
+  for(let i=1;i<W.length;i++)cum.push(cum[i-1]+Math.hypot(W[i][0]-W[i-1][0],W[i][1]-W[i-1][1]));
+  const LEN=cum[cum.length-1];
+  function posAt(d){
+    d=Math.max(0,Math.min(LEN,d));
+    let i=1;while(i<cum.length-1&&cum[i]<d)i++;
+    const t=(d-cum[i-1])/((cum[i]-cum[i-1])||1);
+    return [W[i-1][0]+(W[i][0]-W[i-1][0])*t,W[i-1][1]+(W[i][1]-W[i-1][1])*t];
+  }
+  const cs=new Float64Array(NR),sn=new Float64Array(NR);
+  for(let k=0;k<NR;k++){const a=k*2*Math.PI/NR;cs[k]=Math.cos(a);sn[k]=Math.sin(a)}
+  const near=[];
+  function isovist(px,py){
+    near.length=0;
+    for(let i=0;i<NE;i++){
+      const o=i*4,ax=E[o],ay=E[o+1],bx=E[o+2],by=E[o+3];
+      if(Math.max(ax,bx)<px-R||Math.min(ax,bx)>px+R||Math.max(ay,by)<py-R||Math.min(ay,by)>py+R)continue;
+      near.push(ax,ay,bx,by);
+    }
+    const pts=new Array(NR);let area=0,sum=0,hz=0;
+    for(let k=0;k<NR;k++){
+      const dx=cs[k],dy=sn[k];let best=R;
+      for(let j=0;j<near.length;j+=4){
+        const ax=near[j]-px,ay=near[j+1]-py,ex=near[j+2]-near[j],ey=near[j+3]-near[j+1];
+        const den=dx*ey-dy*ex;if(den===0)continue;
+        const t=(ax*ey-ay*ex)/den, u=(ax*dy-ay*dx)/den;
+        if(t>=0&&t<best&&u>=0&&u<=1)best=t;
+      }
+      sum+=best;if(best>=R)hz++;
+      pts[k]=[px+dx*best,py+dy*best];
+    }
+    for(let k=0;k<NR;k++){const a=pts[k],b=pts[(k+1)%NR];area+=(a[0]-px)*(b[1]-py)-(b[0]-px)*(a[1]-py)}
+    area=Math.abs(area)/2;
+    return {pts,area,mean:sum/NR,aperture:area/(Math.PI*R*R),horizon:hz/NR};
+  }
+  const STEP=2, samples=[];
+  for(let d=0;d<=LEN;d+=STEP){const p=posAt(d);samples.push(isovist(p[0],p[1]).area)}
+  const amax=Math.max(...samples), amin=Math.min(...samples);
+
+  const walkerPoly=L.polygon([],{renderer:canvas,color:"#6a2fa8",weight:2,fillColor:"#6a2fa8",fillOpacity:.34,interactive:false});
+  const trail=L.polyline(SEQ.map(id=>[byId[id].lat,byId[id].lon]),{renderer:canvas,color:"#6a2fa8",weight:2,dashArray:"2 6",opacity:.7,interactive:false});
+  const walker=L.circleMarker([0,0],{radius:8,color:"#fff",weight:3,fillColor:"#6a2fa8",fillOpacity:1,interactive:false});
+  const grp=L.layerGroup([trail,walkerPoly,walker]);
+  const $=id=>document.getElementById(id);
+  const chart=$("wchart");
+  function drawChart(d){
+    const w=320,h=84,pad=6,x=v=>v/LEN*w,y=a=>h-pad-(a-amin)/((amax-amin)||1)*(h-2*pad);
+    const pl=samples.map((a,i)=>x(i*STEP).toFixed(1)+","+y(a).toFixed(1)).join(" ");
+    const wp=cum.map(c=>'<line x1="'+x(c).toFixed(1)+'" x2="'+x(c).toFixed(1)+'" y1="0" y2="'+h+'" stroke="#ddd6c8" stroke-width="1" vector-effect="non-scaling-stroke"/>').join("");
+    chart.innerHTML=wp+'<polyline points="'+pl+'" fill="none" stroke="#222a2e" stroke-width="1.6" vector-effect="non-scaling-stroke"/>'+
+      '<line id="wcur" x1="'+x(d)+'" x2="'+x(d)+'" y1="0" y2="'+h+'" stroke="#6a2fa8" stroke-width="2" vector-effect="non-scaling-stroke"/>';
+  }
+  let active=false, playing=false, dist=0, speed=1, last=0, raf=0, lastDraw=0;
+  const SPEEDS=[1,3,8];
+  function render(d){
+    dist=Math.max(0,Math.min(LEN,d));
+    const p=posAt(dist), iso=isovist(p[0],p[1]);
+    walkerPoly.setLatLngs(iso.pts.map(q=>toLL(q[0],q[1])));
+    walker.setLatLng(toLL(p[0],p[1]));
+    $("w-area").textContent=fmt(iso.area);$("w-ap").textContent=fmt(iso.aperture,3);$("w-dist").textContent=fmt(dist);
+    $("wslider").value=Math.round(dist/LEN*1000);
+    const c=$("wcur");if(c){const xx=dist/LEN*320;c.setAttribute("x1",xx);c.setAttribute("x2",xx)}
+  }
+  function enter(){
+    if(active)return;active=true;
+    if(map.hasLayer(isoLayer))map.removeLayer(isoLayer);
+    grp.addTo(map);drawChart(dist);render(dist);
+    map.fitBounds(trail.getBounds().pad(.35),{animate:true});
+  }
+  function pause(){
+    playing=false;cancelAnimationFrame(raf);
+    $("w-play").textContent="▶ Caminar";$("w-play").setAttribute("aria-pressed","false");
+  }
+  function exit(){
+    pause();if(!active)return;active=false;map.removeLayer(grp);
+    if($("t-iso").checked)isoLayer.addTo(map);
+  }
+  function tick(ts){
+    if(!playing)return;
+    const dt=Math.min(.1,(ts-last)/1000);last=ts;
+    const nd=dist+dt*1.4*speed;
+    if(nd>=LEN){render(LEN);pause();return}
+    if(ts-lastDraw>=33){render(nd);lastDraw=ts}else dist=nd;
+    raf=requestAnimationFrame(tick);
+  }
+  function play(){
+    enter();if(dist>=LEN)dist=0;
+    playing=true;$("w-play").textContent="❚❚ Pausa";$("w-play").setAttribute("aria-pressed","true");
+    last=performance.now();raf=requestAnimationFrame(tick);
+  }
+  $("w-play").onclick=()=>playing?pause():play();
+  $("w-exit").onclick=exit;
+  $("w-speed").onclick=()=>{speed=SPEEDS[(SPEEDS.indexOf(speed)+1)%SPEEDS.length];$("w-speed").textContent="×"+speed};
+  $("wslider").oninput=e=>{enter();render(e.target.value/1000*LEN)};
+  chart.onclick=e=>{const r=chart.getBoundingClientRect();enter();render((e.clientX-r.left)/r.width*LEN)};
+  window.__walk={isovist,posAt,LEN,SEQ,toXY,play,pause,exit,render:d=>{enter();render(d)},samples};
+})();
 window.__mva={select,setMode,map};
 })();
 </script>
