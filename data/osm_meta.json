@@ -1,0 +1,35 @@
+{
+ "source": "OpenStreetMap via Overpass API (overpass-api.de)",
+ "licence": "ODbL, (c) OpenStreetMap contributors",
+ "query": "[out:json][timeout:180];(way[\"building\"](40.39976,-3.71250,40.41784,-3.68890);relation[\"building\"](40.39976,-3.71250,40.41784,-3.68890););out geom;",
+ "osm_timestamp": "2026-11-09T19:13:23Z",
+ "fetched_utc": "2026-11-09T19:15:11Z",
+ "bbox_lonlat": {
+  "south": 40.39975628267043,
+  "west": -3.7124975499631554,
+  "north": 40.41784371732957,
+  "east": -3.6889024500368444
+ },
+ "half_side_m": 1000.0,
+ "raw_sha256": "d7162a137eb02105c17ab5bb37d27e3e53973b4409c5a0053657a85619868df3",
+ "raw_bytes": 8046475,
+ "counts": {
+  "raw_elements": 5398,
+  "valid_buildings": 5394,
+  "dropped_inside_municipal_area": 1052,
+  "dropped_overlapping_municipal": 15,
+  "kept": 4327,
+  "skipped": {
+   "no_geometry": 0,
+   "invalid_or_tiny": 4,
+   "building_no": 0
+  }
+ },
+ "municipal_box_m": {
+  "minx": -448.05913232056287,
+  "miny": -354.8319659998055,
+  "maxx": 256.0701170527086,
+  "maxy": 346.98121199998485
+ },
+ "note": "OSM footprints are volunteer-drawn and differ in definition from the roof-derived municipal outlines; used only outside the municipal area."
+}

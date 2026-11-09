@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Mapa interactivo de isovistas 2D en Lavapiés (Madrid): sonda libre, recorrido animado y resultado del cribado de redundancia del piloto MVA.">
+<title>Isovistas de Lavapiés</title>
+<style><!--@leaflet-css--></style>
+<style><!--@style--></style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel" aria-label="Panel de control">
+    <header class="top">
+      <div><h1>Isovistas de Lavapiés</h1><p class="sub">Madrid Visual Accessibility · piloto exploratorio 2D</p></div>
+      <button id="theme" class="iconbtn" aria-pressed="false" aria-label="Activar tema oscuro" title="Tema claro u oscuro">☾</button>
+    </header>
+    <div class="warn"><b>Descripción geométrica, no validación.</b> Isovistas 2D sobre 1.307 huellas de tejado del Ayuntamiento (área central de 700 × 700 m) y, fuera de ella, 4.327 huellas de OpenStreetMap hasta 2 × 2 km. Sin alturas, fachadas, árboles ni mobiliario. No es visibilidad medida en campo ni un indicador de caminabilidad.</div>
+
+    <div class="tabs" role="tablist" aria-label="Secciones del panel">
+      <button class="tab" role="tab" id="tb-explore" aria-controls="tab-explore" aria-selected="true">Explorar</button>
+      <button class="tab" role="tab" id="tb-walk" aria-controls="tab-walk" aria-selected="false" tabindex="-1">Recorrido</button>
+      <button class="tab" role="tab" id="tb-step0" aria-controls="tab-step0" aria-selected="false" tabindex="-1">Step 0</button>
+      <button class="tab" role="tab" id="tb-notes" aria-controls="tab-notes" aria-selected="false" tabindex="-1">Notas</button>
+    </div>
+
+    <section id="tab-explore" role="tabpanel" aria-labelledby="tb-explore">
+      <p class="small" style="margin-top:0">Haz clic en el mapa (fuera de los edificios) o arrastra el punto azul: la isovista se recalcula al instante en tu navegador. Funciona en toda el área de 2 × 2 km, pero <b>fuera del centro oficial usa huellas de OpenStreetMap</b>, que no son comparables con las del piloto.</p>
+      <div class="ctl"><label for="p-r">Radio máximo</label><output id="o-r" for="p-r">100 m</output>
+        <input type="range" id="p-r" min="30" max="120" step="10" value="100"></div>
+      <div class="ctl"><label for="p-m">Margen de obstáculo (aproximado)</label><output id="o-m" for="p-m">0 m</output>
+        <input type="range" id="p-m" min="0" max="1" step="0.25" value="0"></div>
+      <div class="card" id="probe" aria-live="polite"><p class="small" style="margin:0">Aún no hay punto. Haz clic en el mapa.</p></div>
+      <svg id="polar" class="polar" viewBox="-110 -110 220 220" role="img" aria-label="Perfil de rayos desde el punto" hidden></svg>
+      <div class="btnrow">
+        <button class="seg" id="b-pa">Fijar como A</button>
+        <button class="seg" id="b-pb">Fijar como B</button>
+        <button class="seg" id="b-link">Copiar enlace</button>
+        <button class="seg" id="b-csv">Descargar CSV</button>
+        <button class="seg" id="b-clear">Quitar</button>
+      </div>
+      <div id="pins"></div>
+      <p class="small" id="margin-note" hidden>El margen acorta cada pared hacia el observador: es una aproximación a engrosar los obstáculos, no el buffer exacto de la Fase 2B (difiere hasta 4 puntos porcentuales en área con +1 m).</p>
+
+      <h2>Observadores del piloto (Fase 2A)</h2>
+      <div class="group"><div class="group-title"><span class="dot" style="background:var(--plaza)"></span>Plaza abierta</div><div class="chips" id="chips-plaza"></div></div>
+      <div class="group"><div class="group-title"><span class="dot" style="background:var(--calle)"></span>Calle estrecha (Ave María)</div><div class="chips" id="chips-calle"></div></div>
+      <div class="card" id="detail" aria-live="polite"></div>
+      <h2>Comparar plaza y calle estrecha</h2>
+      <div class="btnrow" role="group" aria-label="Modo de visualización">
+        <button class="seg wide" id="m-one" aria-pressed="true">Uno</button>
+        <button class="seg wide" id="m-all" aria-pressed="false">Todos a la vez</button>
+      </div>
+      <p class="small">Área visible por observador (clic para seleccionar):</p>
+      <div class="bars" id="bars"></div>
+    </section>
+
+    <section id="tab-walk" role="tabpanel" aria-labelledby="tb-walk" hidden>
+      <div class="card">
+        <div class="tag">Un observador camina de la calle de Valencia a Ave María y su isovista se recalcula en cada paso (100 m, 360 rayos y rayos a vértices, huellas de tejado).</div>
+        <div class="metrics" aria-live="off">
+          <div class="m"><b id="w-area">–</b><span>Área visible (m²)</span></div>
+          <div class="m"><b id="w-ap">–</b><span>Apertura visual (0–1)</span></div>
+          <div class="m"><b id="w-dist">0</b><span>Recorrido (m)</span></div>
+        </div>
+        <div class="walk-btns" role="group" aria-label="Controles del recorrido">
+          <button class="seg wide" id="w-play" aria-pressed="false">▶ Caminar</button>
+          <button class="seg" id="w-speed" title="Velocidad">×1</button>
+          <button class="seg" id="w-exit" title="Quitar el recorrido del mapa">Salir</button>
+        </div>
+        <input type="range" id="wslider" min="0" max="1000" value="0" aria-label="Posición a lo largo del recorrido">
+        <svg id="wchart" viewBox="0 0 320 84" preserveAspectRatio="none" role="img" aria-label="Área visible a lo largo del recorrido"></svg>
+        <p class="small" id="w-status">Calculando el perfil del recorrido…</p>
+        <p class="small">Mismo método geométrico que la Fase 2A, recalculado en el navegador. Sigue siendo una descripción geométrica 2D.</p>
+      </div>
+    </section>
+
+    <section id="tab-step0" role="tabpanel" aria-labelledby="tb-step0" hidden>
+      <div class="card">
+        <h3>Cribado de redundancia (Step 0): resultado mixto</h3>
+        <p class="small" style="margin-top:4px">250 puntos cada 20 m sobre ejes peatonales de la EMT, en 400 × 400 m. Los controles (densidad edificada, distancia a huella, ancho, red, POI y paradas) predicen cada medida con validación cruzada por bloques espaciales de 100 m.</p>
+        <div class="metrics" style="grid-template-columns:repeat(2,1fr)">
+          <div class="m"><b>0,937</b><span>R² validado, radio medio (IC 95 %: 0,904–0,951)</span></div>
+          <div class="m"><b>0,833</b><span>R² validado, apertura (IC 95 %: 0,762–0,874)</span></div>
+        </div>
+        <p class="small">Umbral de parada fijado de antemano: 0,85 en ambas. Solo el radio medio lo supera, de ahí el veredicto <b>mixto</b>. Controles e isovistas salen de las mismas huellas, así que el resultado dice «poco más allá de lo que ya dicen las huellas», no «la visibilidad no importa». No se probó ningún resultado peatonal.</p>
+      </div>
+      <label class="tgl" style="margin-top:10px"><input type="checkbox" id="t-s0"> Mostrar los 250 puntos</label>
+      <div class="radio" role="radiogroup" aria-label="Variable a colorear" id="s0-mode">
+        <label><input type="radio" name="s0" value="mean_ray" checked> Radio medio (m)</label>
+        <label><input type="radio" name="s0" value="aperture"> Apertura (0–1)</label>
+        <label><input type="radio" name="s0" value="resid_mean_ray"> Residuo del radio medio (observado − predicho)</label>
+        <label><input type="radio" name="s0" value="resid_aperture"> Residuo de la apertura</label>
+      </div>
+      <div class="ramp" id="s0-ramp"></div>
+      <div class="ramp-l"><span id="s0-lo"></span><span id="s0-hi"></span></div>
+      <p class="small">Los residuos muestran dónde la isovista es más abierta (naranja) o más cerrada (azul) de lo que predicen los controles. Están agrupados en el espacio (I de Moran 0,24 a 0,38), pero ninguna característica geométrica probada lo explicó tras corregir por pruebas múltiples. Puntos a 20 m son vecinos muy parecidos entre sí.</p>
+    </section>
+
+    <section id="tab-notes" role="tabpanel" aria-labelledby="tb-notes" hidden>
+      <details open>
+        <summary>Cómo leer y límites</summary>
+        <ul>
+          <li><b>Parámetros:</b> radio máximo 100 m (ajustable en la sonda), 360 rayos más un rayo a cada vértice, obstáculos = huellas de tejado (ETRS89 / UTM 30N).</li>
+          <li><b>Apertura</b> = área visible / (π·R²). Va de 0 a 1. <b>Radio medio</b> = longitud media de los rayos; los que alcanzan el horizonte cuentan como R.</li>
+          <li><b>Fidelidad:</b> frente a los cálculos de Python de la Fase 2A, el área difiere como máximo un 0,5 % y el radio medio 0,07 m en los nueve observadores.</li>
+          <li><b>Sensibilidad (Fase 2B):</b> engrosar los obstáculos 1 m reduce el área entre un 12 % y un 49 %. Los puntos con poco margen respecto a una huella son frágiles, sobre todo cand-026.</li>
+          <li><b>Dos fuentes de huellas.</b> El área central (700 × 700 m) usa las huellas de tejado del Ayuntamiento; el resto, hasta 2 × 2 km, usa edificios de OpenStreetMap dibujados por voluntarios (consulta del 2026-11-09). No tienen la misma definición: pueden faltar edificios, estar desplazados o fusionar bloques. Los resultados del piloto, el Step 0 y el recorrido solo usan huellas del Ayuntamiento. Los que dependen de OpenStreetMap llevan aviso.</li>
+          <li>Cerca del borde de los datos (2 × 2 km) la isovista puede quedar truncada; la sonda avisa.</li>
+          <li>Las huellas (2026) y la ortofoto usada para validar los nueve puntos (2025) no son contemporáneas. La visibilidad real en calle es menor.</li>
+          <li>Piloto cerrado tras el Step 0 (2026-11-08). No hay evidencia de que la visibilidad aporte información más allá de densidad, red y POI con estas huellas.</li>
+        </ul>
+        <p class="small">Datos: Origen de los datos: Ayuntamiento de Madrid, modelo de edificaciones y construcciones de la cartografía actualizada (revisión de metadatos 2026-07-01). Las huellas se reproyectaron a WGS84 y se redondearon a 6 decimales (~0,1 m). Esta demo es un trabajo independiente: el Ayuntamiento de Madrid no participa, patrocina ni apoya su contenido. Ejes de calle: EMT. Puntos de interés y huellas fuera del área central: © OpenStreetMap contributors (ODbL). Mapa base © OpenStreetMap contributors.</p>
+        <p class="small">Código y método: <a href="https://github.com/soroushkarahrodi79-oss/madrid-isovist-demo">repositorio</a>.</p>
+      </details>
+      <h2>Capas</h2>
+      <label class="tgl"><input type="checkbox" id="t-bld" checked> Edificios (huellas del Ayuntamiento)</label>
+      <label class="tgl"><input type="checkbox" id="t-osm" checked> Edificios de OpenStreetMap (fuera del área oficial)</label>
+      <label class="tgl"><input type="checkbox" id="t-iso" checked> Polígonos de visibilidad de la Fase 2A</label>
+      <label class="tgl"><input type="checkbox" id="t-obs" checked> Observadores</label>
+      <label class="tgl"><input type="checkbox" id="t-ring"> Horizonte de 100 m</label>
+      <label class="tgl"><input type="checkbox" id="t-tile" checked> Mapa base (requiere conexión)</label>
+    </section>
+  </aside>
+  <div class="mapwrap">
+    <div id="map" role="application" aria-label="Mapa interactivo de isovistas en Lavapiés"></div>
+    <div id="nt">Sin conexión: se muestran solo las geometrías del piloto</div>
+    <div id="toast" role="status"></div>
+    <button id="leg-btn" class="iconbtn" aria-expanded="false" aria-controls="legend" title="Leyenda" aria-label="Mostrar leyenda">ⓘ</button>
+    <div class="legend" id="legend"></div>
+  </div>
+</div>
+<script><!--@leaflet-js--></script>
+<script><!--@data--></script>
+<script><!--@isovist--></script>
+<script><!--@app--></script>
+</body>
+</html>
