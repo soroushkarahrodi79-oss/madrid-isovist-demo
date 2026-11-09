@@ -1075,7 +1075,8 @@ const tiles = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { ma
 let tileOk = false;
 tiles.on("tileload", () => { tileOk = true; $("nt").style.display = "none"; });
 tiles.on("tileerror", () => { if (!tileOk && $("t-tile").checked) $("nt").style.display = "block"; });
-const canvas = L.canvas({ padding: .5 });
+const canvas = L.canvas({ padding: .5 });   // static layers: buildings (repainted only after pan or zoom)
+const dyn = L.canvas({ padding: .5 });      // layers that change often (probe, walk, selection, Step 0): a separate canvas so the buildings are not repainted each time
 const bld = L.layerGroup();
 const bldPoly = L.polygon(D.buildings.flatMap(mp => mp.map(poly => poly.map(r => r.map(c => [c[1], c[0]])))), { renderer: canvas, stroke: true, weight: .8, fillOpacity: .9, interactive: false }).addTo(bld);
 bld.addTo(map);
@@ -1085,8 +1086,8 @@ osmLayer.addTo(map); bldPoly.bringToFront();
 const isoLayer = L.layerGroup().addTo(map), ringLayer = L.layerGroup(), obsLayer = L.layerGroup().addTo(map);
 const isoById = {}, markerById = {}, ringById = {};
 OBS.forEach(o => {
-  isoById[o.id] = L.polygon(o.poly.map(c => [c[1], c[0]]), { renderer: canvas, weight: 1.6, fillOpacity: .32, interactive: false });
-  ringById[o.id] = L.circle([o.lat, o.lon], { radius: 100, weight: 1, dashArray: "4 5", fill: false, interactive: false, renderer: canvas }).addTo(ringLayer);
+  isoById[o.id] = L.polygon(o.poly.map(c => [c[1], c[0]]), { renderer: dyn, weight: 1.6, fillOpacity: .32, interactive: false });
+  ringById[o.id] = L.circle([o.lat, o.lon], { radius: 100, weight: 1, dashArray: "4 5", fill: false, interactive: false, renderer: dyn }).addTo(ringLayer);
   markerById[o.id] = L.circleMarker([o.lat, o.lon], { radius: 7, color: "#fff", weight: 2.5, fillOpacity: 1, bubblingMouseEvents: false })
     .bindTooltip(short(o.id), { permanent: true, direction: "right", offset: [8, 0], className: "obs-label" }).addTo(obsLayer);
   markerById[o.id].on("click", () => select(o.id));
@@ -1095,8 +1096,8 @@ let sel = OBS[0].id, all = false;
 
 // ---------- probe (live isovist anywhere in the data)
 const probeGroup = L.layerGroup().addTo(map);
-const probePoly = L.polygon([], { renderer: canvas, weight: 2, fillOpacity: .3, interactive: false }).addTo(probeGroup);
-const pinPoly = { A: L.polygon([], { renderer: canvas, weight: 2, fillOpacity: .08, interactive: false }), B: L.polygon([], { renderer: canvas, weight: 2, dashArray: "6 5", fillOpacity: .08, interactive: false }) };
+const probePoly = L.polygon([], { renderer: dyn, weight: 2, fillOpacity: .3, interactive: false }).addTo(probeGroup);
+const pinPoly = { A: L.polygon([], { renderer: dyn, weight: 2, fillOpacity: .08, interactive: false }), B: L.polygon([], { renderer: dyn, weight: 2, dashArray: "6 5", fillOpacity: .08, interactive: false }) };
 const probeMarker = L.marker([0, 0], { draggable: true, keyboard: true, title: "Punto de la sonda: arrástralo", icon: L.divIcon({ className: "", html: '<div class="probe-pin"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }) });
 let probe = null, pins = { A: null, B: null }, raf = 0;
 function compute(lat, lon, R, mg) {
@@ -1236,7 +1237,7 @@ Object.values(MODES).forEach(m => { const v = S0.points.map(p => p[m.idx]); m.lo
 let s0mode = "mean_ray";
 const s0Layer = L.layerGroup();
 const s0Marks = S0.points.map(p => {
-  const m = L.circleMarker([p[F.lat], p[F.lon]], { renderer: canvas, radius: 5, weight: 1, color: "#fff", fillOpacity: .92, bubblingMouseEvents: false });
+  const m = L.circleMarker([p[F.lat], p[F.lon]], { renderer: dyn, radius: 5, weight: 1, color: "#fff", fillOpacity: .92, bubblingMouseEvents: false });
   m.bindTooltip(() => `Radio medio ${fmt(p[F.mean_ray], 1)} m (predicho ${fmt(p[F.pred_mean_ray], 1)}, residuo ${fmt(p[F.resid_mean_ray], 1)})<br>Apertura ${fmt(p[F.aperture], 3)} (predicha ${fmt(p[F.pred_aperture], 3)}, residuo ${fmt(p[F.resid_aperture], 3)})<br>Edificación a 20 m: ${fmt(p[F.built20] * 100)} %`, { sticky: true });
   s0Layer.addLayer(m); return m;
 });
@@ -1259,9 +1260,9 @@ function initWalk() {
   for (let i = 1; i < W.length; i++) cum.push(cum[i - 1] + Math.hypot(W[i][0] - W[i - 1][0], W[i][1] - W[i - 1][1]));
   const LEN = cum[cum.length - 1], STEP = 2, samples = [];
   const posAt = d => { d = Math.max(0, Math.min(LEN, d)); let i = 1; while (i < cum.length - 1 && cum[i] < d) i++; const t = (d - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1); return [W[i - 1][0] + (W[i][0] - W[i - 1][0]) * t, W[i - 1][1] + (W[i][1] - W[i - 1][1]) * t]; };
-  const walkerPoly = L.polygon([], { renderer: canvas, weight: 2, fillOpacity: .34, interactive: false });
-  const trail = L.polyline(SEQ.map(id => [byId[id].lat, byId[id].lon]), { renderer: canvas, weight: 2, dashArray: "2 6", opacity: .7, interactive: false });
-  const walker = L.circleMarker([0, 0], { radius: 8, color: "#fff", weight: 3, fillOpacity: 1, interactive: false });
+  const walkerPoly = L.polygon([], { renderer: dyn, weight: 2, fillOpacity: .34, interactive: false });
+  const trail = L.polyline(SEQ.map(id => [byId[id].lat, byId[id].lon]), { renderer: dyn, weight: 2, dashArray: "2 6", opacity: .7, interactive: false });
+  const walker = L.circleMarker([0, 0], { renderer: dyn, radius: 8, color: "#fff", weight: 3, fillOpacity: 1, interactive: false });
   const grp = L.layerGroup([trail, walkerPoly, walker]);
   const restyleW = () => { [walkerPoly, trail].forEach(x => x.setStyle({ color: css("--walk"), fillColor: css("--walk") })); walker.setStyle({ fillColor: css("--walk") }); };
   restyleW();
