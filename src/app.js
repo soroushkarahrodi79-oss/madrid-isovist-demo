@@ -42,6 +42,8 @@ bld.addTo(map);
 const osmLayer = L.layerGroup();
 const osmPoly = L.polygon((D.osm || []).flatMap(mp => mp.map(poly => poly.map(r => r.map(c => [c[1], c[0]])))), { renderer: canvas, stroke: true, weight: .7, fillOpacity: .85, interactive: false }).addTo(osmLayer);
 osmLayer.addTo(map); bldPoly.bringToFront();
+// outline of the area covered by the municipal footprints: inside = Ayuntamiento, outside = OpenStreetMap
+const munBox = L.rectangle([M.toLL(MUN.minx, MUN.miny), M.toLL(MUN.maxx, MUN.maxy)], { renderer: canvas, weight: 1.6, dashArray: "9 6", fill: false, interactive: false });   // added to the map in start(): adding it before the first setView broke Leaflet's first canvas draw
 const isoLayer = L.layerGroup().addTo(map), ringLayer = L.layerGroup(), obsLayer = L.layerGroup().addTo(map);
 const isoById = {}, markerById = {}, ringById = {};
 OBS.forEach(o => {
@@ -69,12 +71,34 @@ function compute(lat, lon, R, mg) {
   return { res, x, y, R, mg, lat, lon };
 }
 function params() { return { R: +$("p-r").value, mg: +$("p-m").value }; }
+
+// ---------- obstacle-margin sensitivity of the probe (0 / 0.5 / 1 m), computed after the pointer rests so dragging stays fluid
+const SENS = [0, .5, 1];
+const sensLines = [.5, 1].map((m, i) => L.polygon([[0, 0]], { renderer: dyn, weight: 1.8, fill: false, dashArray: i ? "2 5" : "8 5", interactive: false }));
+let sensT = 0, sensOn = true;
+// the outlines are added to the map only while they hold a result (an empty polygon inside a nested group broke Leaflet's first draw)
+function putSens(l, pts) { if (pts.length && sensOn) { l.setLatLngs(pts); if (!probeGroup.hasLayer(l)) l.addTo(probeGroup); } else if (probeGroup.hasLayer(l)) probeGroup.removeLayer(l); }
+function sensitivity(c) {
+  clearTimeout(sensT); const box = $("sens");
+  if (!c || !c.res) { box.hidden = true; box.innerHTML = ""; sensLines.forEach(l => putSens(l, [])); return; }
+  box.hidden = false; box.innerHTML = '<p class="small" style="margin:0">Calculando la sensibilidad al margen…</p>';
+  sensT = setTimeout(() => {
+    const rows = SENS.map(m => { const r = m === 0 && c.mg === 0 ? c.res : M.isovist(ED, c.x, c.y, { R: c.R, margin: m }); return { m, r }; });
+    const base = rows[0].r.invalid ? null : rows[0].r;
+    sensLines.forEach((l, i) => { const r = rows[i + 1].r; putSens(l, r.invalid ? [] : r.pts.map(ll)); });
+    const cell = ({ m, r }) => r.invalid ? `<tr><td>${fmt(m, 1)} m</td><td colspan="3">no aplicable: la huella queda a menos de ${fmt(m, 1)} m</td></tr>`
+      : `<tr><td>${fmt(m, 1)} m</td><td>${fmt(r.area)}</td><td>${fmt(r.aperture, 3)}</td><td>${base && m ? (r.area >= base.area ? "+" : "−") + fmt(Math.abs(100 * (r.area - base.area) / base.area), 1) + " %" : "–"}</td></tr>`;
+    box.innerHTML = `<h3>Sensibilidad al obstáculo</h3><table class="pins"><thead><tr><th>Margen</th><th>Área m²</th><th>Apertura</th><th>Área frente a 0 m</th></tr></thead><tbody>${rows.map(cell).join("")}</tbody></table>
+      <p class="small">Margen aproximado (ver más abajo): sirve para ver qué puntos son frágiles, no sustituye el buffer exacto de la Fase 2B. Contornos discontinuos en el mapa: 0,5 m (guiones largos) y 1 m (puntos).</p>`;
+  }, 160);
+}
+$("t-sens").onchange = e => { sensOn = e.target.checked; if (probe) sensitivity(probe); else sensLines.forEach(l => putSens(l, [])); };
 function setProbe(lat, lon, o) {
   o = o || {}; const { R, mg } = params(), c = compute(lat, lon, R, mg);
   if (c.inside) { toast("Ese punto está dentro de un edificio"); return; }
   probeMarker.setLatLng([lat, lon]); if (!probeGroup.hasLayer(probeMarker)) probeMarker.addTo(probeGroup);
-  if (c.invalid) { probe = null; probePoly.setLatLngs([]); renderProbe({ lat, lon, invalid: true, clearance: c.clearance, mg }); writeHash(); return; }
-  probe = c; probePoly.setLatLngs(c.res.pts.map(ll)); renderProbe(c); polar(c); writeHash();
+  if (c.invalid) { probe = null; probePoly.setLatLngs([]); sensitivity(null); renderProbe({ lat, lon, invalid: true, clearance: c.clearance, mg }); writeHash(); return; }
+  probe = c; probePoly.setLatLngs(c.res.pts.map(ll)); renderProbe(c); polar(c); sensitivity(c); writeHash();
 }
 function renderProbe(c) {
   const box = $("probe");
@@ -101,7 +125,7 @@ probeMarker.on("drag", e => { if (raf) return; const p = e.latlng; raf = request
   $("o-r").textContent = $("p-r").value + " m"; $("o-m").textContent = fmt(+$("p-m").value, 2) + " m"; $("margin-note").hidden = +$("p-m").value === 0;
   if (probeMarker.getLatLng && probeGroup.hasLayer(probeMarker)) { const p = probeMarker.getLatLng(); setProbe(p.lat, p.lng); }
 });
-function clearProbe() { probeGroup.removeLayer(probeMarker); probePoly.setLatLngs([]); probe = null; $("probe").innerHTML = '<p class="small" style="margin:0">Aún no hay punto. Haz clic en el mapa.</p>'; $("polar").hidden = true; writeHash(); }
+function clearProbe() { probeGroup.removeLayer(probeMarker); probePoly.setLatLngs([]); probe = null; sensitivity(null); $("probe").innerHTML = '<p class="small" style="margin:0">Aún no hay punto. Haz clic en el mapa.</p>'; $("polar").hidden = true; writeHash(); }
 $("b-clear").onclick = clearProbe;
 document.addEventListener("keydown", e => { if (e.key === "Escape" && tab === "explore") clearProbe(); });
 function pin(k) {
@@ -123,6 +147,23 @@ $("b-csv").onclick = () => {
   const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["﻿" + rows.map(r => r.join(",")).join("\n") + "\n"], { type: "text/csv" }));
   a.download = "isovistas_mva.csv"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 };
+// PNG of the current view, drawn from the two canvas renderers (footprints + analysis layers). The OpenStreetMap base tiles are left out on purpose:
+// they cannot be exported without tainting the canvas, and a figure of the analysis should not carry a basemap anyway. The caption carries the link that restores the view.
+function exportPNG() {
+  const rs = [canvas, dyn].filter(r => r._container && r._bounds), sz = map.getSize();
+  if (!rs.length) { toast("No hay nada que exportar"); return; }
+  const k = rs[0]._container.width / rs[0]._bounds.getSize().x, cap = 46, out = document.createElement("canvas");
+  out.width = Math.round(sz.x * k); out.height = Math.round((sz.y + cap) * k);
+  const g = out.getContext("2d"); g.fillStyle = css("--bg"); g.fillRect(0, 0, out.width, out.height);
+  rs.forEach(r => { const p = map.layerPointToContainerPoint(r._bounds.min); g.drawImage(r._container, Math.round(p.x * k), Math.round(p.y * k)); });
+  g.fillStyle = css("--panel"); g.fillRect(0, sz.y * k, out.width, cap * k);
+  g.fillStyle = css("--ink"); g.font = `${11 * k}px system-ui, sans-serif`;
+  writeHash(); const when = new Date().toISOString().slice(0, 10);
+  g.fillText(`MVA · isovistas 2D sobre huellas · vista exportada ${when} · sin mapa base`, 8 * k, (sz.y + 15) * k);
+  g.fillText("Huellas: Ayuntamiento de Madrid (centro) y © OpenStreetMap contributors (resto, ODbL). Enlace: " + location.href.slice(0, 160), 8 * k, (sz.y + 31) * k);
+  out.toBlob(b => { if (!b) { toast("No se pudo crear la imagen"); return; } const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "mva_vista_" + when + ".png"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }, "image/png");
+}
+$("b-png").onclick = exportPNG; $("b-png2").onclick = exportPNG;
 $("b-link").onclick = () => { writeHash(); const u = location.href; (navigator.clipboard ? navigator.clipboard.writeText(u) : Promise.reject()).then(() => toast("Enlace copiado"), () => { prompt("Copia el enlace:", u); }); };
 function writeHash() {
   const q = []; if (probeGroup.hasLayer(probeMarker)) { const p = probeMarker.getLatLng(); q.push("p=" + p.lat.toFixed(6) + "," + p.lng.toFixed(6), "r=" + $("p-r").value, "m=" + $("p-m").value); }
@@ -195,8 +236,18 @@ const MODES = {
 Object.values(MODES).forEach(m => { const v = S0.points.map(p => p[m.idx]); m.lo = Math.min(...v); m.hi = Math.max(...v); if (m.div) { const a = Math.max(Math.abs(m.lo), Math.abs(m.hi)); m.lo = -a; m.hi = a; } });
 let s0mode = "mean_ray";
 const s0Layer = L.layerGroup();
-const s0Marks = S0.points.map(p => {
+const s0Ring = L.circleMarker([0, 0], { renderer: dyn, radius: 9, weight: 2.5, fill: false, interactive: false });
+function showS0(i) {
+  const p = S0.points[i], g = (k, d) => fmt(p[F[k]], d), pct = (o, q) => (o - q >= 0 ? "+" : "−") + fmt(Math.abs(100 * (o - q) / q), 1) + " %";
+  s0Ring.setLatLng([p[F.lat], p[F.lon]]); s0Ring.setStyle({ color: css("--ink") }); if (!s0Layer.hasLayer(s0Ring)) s0Ring.addTo(s0Layer);
+  $("s0-card").innerHTML = `<h3>Punto ${i + 1} de ${S0.n}</h3><table class="pins"><thead><tr><th></th><th>Observado</th><th>Predicho por los controles</th><th>Residuo</th></tr></thead><tbody>
+    <tr><td>Radio medio (m)</td><td>${g("mean_ray", 1)}</td><td>${g("pred_mean_ray", 1)}</td><td>${g("resid_mean_ray", 1)} (${pct(p[F.mean_ray], p[F.pred_mean_ray])})</td></tr>
+    <tr><td>Apertura (0–1)</td><td>${g("aperture", 3)}</td><td>${g("pred_aperture", 3)}</td><td>${g("resid_aperture", 3)} (${pct(p[F.aperture], p[F.pred_aperture])})</td></tr></tbody></table>
+    <p class="small">Edificación a 20 m: ${fmt(p[F.built20] * 100)} %. Distancia a la huella más cercana: ${g("clearance", 2)} m. Los valores predichos salen de la validación por bloques; un residuo pequeño significa que los controles ya decían casi lo mismo que la isovista en este punto.</p>`;
+}
+const s0Marks = S0.points.map((p, i) => {
   const m = L.circleMarker([p[F.lat], p[F.lon]], { renderer: dyn, radius: 5, weight: 1, color: "#fff", fillOpacity: .92, bubblingMouseEvents: false });
+  m.on("click", () => showS0(i));
   m.bindTooltip(() => `Radio medio ${fmt(p[F.mean_ray], 1)} m (predicho ${fmt(p[F.pred_mean_ray], 1)}, residuo ${fmt(p[F.resid_mean_ray], 1)})<br>Apertura ${fmt(p[F.aperture], 3)} (predicha ${fmt(p[F.pred_aperture], 3)}, residuo ${fmt(p[F.resid_aperture], 3)})<br>Edificación a 20 m: ${fmt(p[F.built20] * 100)} %`, { sticky: true });
   s0Layer.addLayer(m); return m;
 });
@@ -272,7 +323,8 @@ function legend() {
   if (tab === "explore") items.push(`<div>${sw(css("--probe") + "55", css("--probe"))}Isovista de la sonda</div>`, `<div>${sw(css("--plaza") + "55", css("--plaza"))}Isovista · plaza abierta (2A)</div>`, `<div>${sw(css("--calle") + "55", css("--calle"))}Isovista · calle estrecha (2A)</div>`);
   if (tab === "walk") items.push(`<div>${sw(css("--walk") + "55", css("--walk"))}Isovista del recorrido</div>`);
   if (tab === "step0") items.push(`<div><b>${MODES[s0mode].name}</b></div><div>${$("t-s0").checked ? "Cada punto: 1 de los 250 del cribado" : "Capa de puntos desactivada"}</div>`);
-  items.push(`<div>${sw(css("--bld"), css("--bld-line"))}Huella del Ayuntamiento</div>`, `<div>${sw(css("--osm"), css("--osm-line"))}Huella de OpenStreetMap</div>`);
+  if (tab === "step0" && s0mode.startsWith("resid")) items.push(`<div>Naranja: más abierta de lo predicho · Azul: más cerrada</div>`);
+  items.push(`<div>${sw(css("--bld"), css("--bld-line"))}Huella del Ayuntamiento</div>`, `<div>${sw(css("--osm"), css("--osm-line"))}Huella de OpenStreetMap</div>`, `<div><span class="sw" style="background:none;border:1.5px dashed ${css("--ink")}"></span>Límite del área oficial: dentro, Ayuntamiento; fuera, OpenStreetMap</div>`);
   $("legend").innerHTML = items.join("");
 }
 $("leg-btn").onclick = () => { const o = $("legend").classList.toggle("open"); $("leg-btn").setAttribute("aria-expanded", String(o)); $("leg-btn").setAttribute("aria-label", o ? "Ocultar leyenda" : "Mostrar leyenda"); };
@@ -280,6 +332,7 @@ function restyle() {
   bldPoly.setStyle({ color: css("--bld-line"), fillColor: css("--bld") });
   osmPoly.setStyle({ color: css("--osm-line"), fillColor: css("--osm") });
   probePoly.setStyle({ color: css("--probe"), fillColor: css("--probe") });
+  sensLines.forEach(l => l.setStyle({ color: css("--probe") })); munBox.setStyle({ color: css("--ink") });
   pinPoly.A.setStyle({ color: css("--ink"), fillColor: css("--ink") }); pinPoly.B.setStyle({ color: css("--ink"), fillColor: css("--ink") });
   OBS.forEach(o => { isoById[o.id].setStyle({ color: col(o.context), fillColor: col(o.context) }); ringById[o.id].setStyle({ color: col(o.context) }); });
   Object.values(MODES).length && s0Marks.forEach(m => m.setStyle({ color: css("--panel") }));
@@ -289,7 +342,7 @@ window.__ready = true; restyle();
 
 // ---------- start (restore from URL if present)
 function start() {
-  map.invalidateSize();
+  map.invalidateSize(); munBox.addTo(map);
   const q = Object.fromEntries((location.hash || "").slice(1).split("&").filter(Boolean).map(s => s.split("=")));
   if (q.r) { $("p-r").value = q.r; $("o-r").textContent = q.r + " m"; }
   if (q.m) { $("p-m").value = q.m; $("o-m").textContent = fmt(+q.m, 2) + " m"; $("margin-note").hidden = +q.m === 0; }

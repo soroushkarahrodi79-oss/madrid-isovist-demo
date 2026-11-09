@@ -16,6 +16,10 @@ Mapa interactivo (Leaflet, un único `index.html` autónomo generado desde `src/
 - Sensibilidad (fase 2B): engrosar los obstáculos 1 m reduce el área entre un 12 % y un 49 %; el punto cand-026 es frágil.
 - **Dos fuentes de huellas.** El área central de 700 × 700 m usa las huellas de tejado del Ayuntamiento. El resto, hasta 2 × 2 km, usa edificios de OpenStreetMap (voluntarios, consulta del 2026-11-09), con otra definición: pueden faltar edificios, estar desplazados o fusionar bloques. La sonda avisa cuando el círculo de la isovista toca la zona de OpenStreetMap, y esos resultados no son comparables con los del piloto. El piloto, el Step 0 y el recorrido solo usan huellas del Ayuntamiento.
 - Cerca del borde de los datos (2 × 2 km) la isovista puede quedar truncada; la sonda también lo avisa.
+- **Sensibilidad al obstáculo (2026-11-09, sin publicar):** la sonda calcula el área con margen 0, 0,5 y 1 m, muestra el cambio relativo y dibuja los contornos. El margen es una aproximación, no el buffer exacto de la Fase 2B.
+- **Ficha por punto del Step 0 (sin publicar):** al hacer clic en uno de los 250 puntos se ve lo observado, lo predicho por los controles y el residuo.
+- **Límite del área oficial (sin publicar):** un contorno discontinuo separa las huellas del Ayuntamiento (dentro) de las de OpenStreetMap (fuera).
+- **Descargar PNG (sin publicar):** exporta la vista actual sin mapa base, con pie que incluye el enlace para restaurarla. Probado solo en el navegador integrado.
 
 ## Estado del piloto: cerrado tras el Step 0 (2026-11-08)
 - Se ejecutó el cribado de redundancia con una regla fijada de antemano: 250 puntos cada 20 m sobre los ejes peatonales de la EMT en los 400 m centrales, con validación cruzada por bloques espaciales de 100 m. Los controles fueron densidad edificada, distancia a huella, ancho de calle, posición en la red y POI y paradas de OpenStreetMap (ODbL).
