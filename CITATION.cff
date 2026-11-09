@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "Si usas este software o sus resultados, cítalo así. Los datos tienen sus propias condiciones: ver docs/DATOS_Y_LICENCIAS.md."
+title: "Madrid Isovist Demo: isovistas 2D en Lavapiés sobre huellas de edificios"
+type: software
+authors:
+  - name: "soroushkarahrodi79-oss"   # sustituir por el nombre real de la autoría cuando se decida
+repository-code: "https://github.com/soroushkarahrodi79-oss/madrid-isovist-demo"
+url: "https://soroushkarahrodi79-oss.github.io/madrid-isovist-demo/"
+license: MIT
+date-released: 2026-11-09
+keywords:
+  - isovist
+  - visibility
+  - building footprints
+  - Madrid
+  - Leaflet
+abstract: >-
+  Demo web que recalcula isovistas 2D en el navegador sobre huellas de edificios de Lavapiés
+  (Madrid), con la sonda libre, el recorrido animado, la sensibilidad al obstáculo y los resultados
+  del cribado de redundancia (Step 0, resultado mixto). Es una descripción geométrica, no visibilidad
+  validada en campo ni un indicador de caminabilidad.
