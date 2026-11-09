@@ -59,8 +59,15 @@ No edites `index.html` a mano: se sobrescribe al construir.
 - **Mapa base:** © OpenStreetMap contributors (se carga en línea; sin conexión se ven solo las geometrías).
 - **Leaflet** 1.9.4, © Vladimir Agafonkin, licencia BSD-2-Clause (aviso conservado en `src/vendor/leaflet.js`).
 
+## Licencias
+Es una indicación práctica, no asesoría legal.
+- **Código** (`src/app.js`, `src/isovist.js`, `src/style.css`, `src/template.html`, `build.py`, `tests/`, `tools/`): licencia [MIT](LICENSE), © 2026 soroushkarahrodi79-oss.
+- **Leaflet** (`src/vendor/`): BSD-2-Clause, © Vladimir Agafonkin. Conserva su aviso en el propio archivo.
+- **Huellas del Ayuntamiento y datos derivados de ellas** (`data/buildings.json`, `data/observers.json`, `data/step0_points.json`): no los cubre la licencia MIT. Rigen las [condiciones generales](https://datos.madrid.es/pages/condiciones-generales-ayuntamiento-de-madrid) del Ayuntamiento de Madrid: citar la fuente y la fecha de actualización, no desnaturalizar los datos y no sugerir que el Ayuntamiento participa o apoya este trabajo.
+- **Huellas de OpenStreetMap** (`data/buildings_osm.json`, `data/osm_meta.json`): base de datos derivada de OpenStreetMap, bajo la [ODbL](https://opendatacommons.org/licenses/odbl/1-0/), © OpenStreetMap contributors. Quien la reutilice debe atribuir y compartir las modificaciones de la base de datos bajo la misma licencia.
+- **Mapa base:** © OpenStreetMap contributors, sujeto a la [política de uso de teselas](https://operations.osmfoundation.org/policies/tiles/) de la Fundación OSM.
+
 ## Pendiente
-- **Licencia del código de este repositorio:** no hay archivo `LICENSE`; la elección es de la persona titular.
 - **Huellas oficiales fuera del centro:** el área de 2 × 2 km usa OpenStreetMap porque solo hay huellas del Ayuntamiento para 700 × 700 m. Con un archivo oficial mayor se sustituiría y desaparecería el aviso.
 - **Rendimiento:** alejar el zoom con todas las capas tarda en torno a 1 o 2 s la primera vez en la ventana de pruebas; no se midió en un portátil ni en un móvil reales.
 - Idioma: la interfaz está solo en español.
